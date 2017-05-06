@@ -107,10 +107,9 @@ public enum Region
         for (Region region : values())
         {
             if (region.getKey().equals(key))
-            {
                 return region;
-            }
         }
+        System.out.println("[RECEIVED UNKNOWN REGION] " + key);
         return UNKNOWN;
     }
 
