@@ -801,8 +801,17 @@ public class GuildController
         if (guild.getOwner().equals(member))
             throw new PermissionException("Cannot modified Guild Deafen status the Owner of the Guild");
 
-        if (member.getVoiceState().isGuildDeafened() == deafen)
-            return new RestAction.EmptyRestAction<Void>(null);
+        final GuildVoiceStateImpl voiceState = (GuildVoiceStateImpl) member.getVoiceState();
+        synchronized (voiceState)
+        {
+            if (voiceState.isLocked()) // awaiting update by event
+                throw new IllegalStateException("Cannot modify voice state of this Member. Old changes have not been applied yet!");
+
+            if (voiceState.isGuildDeafened() == deafen)
+                return new RestAction.EmptyRestAction<>(null);
+
+            voiceState.lock();
+        }
 
         JSONObject body = new JSONObject().put("deaf", deafen);
         Route.CompiledRoute route = Route.Guilds.MODIFY_MEMBER.compile(guild.getId(), member.getUser().getId());
@@ -868,8 +877,17 @@ public class GuildController
         if (guild.getOwner().equals(member))
             throw new PermissionException("Cannot modified Guild Mute status the Owner of the Guild");
 
-        if (member.getVoiceState().isGuildMuted() == mute)
-            return new RestAction.EmptyRestAction<Void>(null);
+        final GuildVoiceStateImpl voiceState = (GuildVoiceStateImpl) member.getVoiceState();
+        synchronized (voiceState)
+        {
+            if (voiceState.isLocked()) // awaiting update by event
+                throw new IllegalStateException("Cannot modify voice state of this Member. Old changes have not been applied yet!");
+
+            if (voiceState.isGuildMuted() == mute)
+                return new RestAction.EmptyRestAction<>(null);
+
+            voiceState.lock();
+        }
 
         JSONObject body = new JSONObject().put("mute", mute);
         Route.CompiledRoute route = Route.Guilds.MODIFY_MEMBER.compile(guild.getId(), member.getUser().getId());
@@ -1176,6 +1194,9 @@ public class GuildController
         Args.notNull(rolesToRemove, "Collection containing roles to be removed from the member");
         checkGuild(member.getGuild(), "member");
         checkPermission(Permission.MANAGE_ROLES);
+
+        checkUpdateState((MemberImpl) member, "Member");
+
         rolesToAdd.forEach(role ->
         {
             Args.notNull(role, "role in rolesToAdd");
@@ -1310,6 +1331,9 @@ public class GuildController
         Args.notNull(member, "member");
         Args.notNull(roles, "roles");
         checkGuild(member.getGuild(), "member");
+
+        checkUpdateState((MemberImpl) member, "Member");
+
         roles.forEach(role ->
         {
             Args.notNull(role, "role in collection");
@@ -1912,5 +1936,15 @@ public class GuildController
     {
         if(!guild.getSelfMember().canInteract(role))
             throw new PermissionException("Can't modify a role with higher or equal highest role than yourself! Role: " + role.toString());
+    }
+
+    private void checkUpdateState(UpdateLock lockable, String name)
+    {
+        synchronized (lockable)
+        {
+            if (lockable.isLocked())
+                throw new IllegalStateException("Cannot modify " + name + ". Old changes have not been applied by event yet!");
+            lockable.lock();
+        }
     }
 }

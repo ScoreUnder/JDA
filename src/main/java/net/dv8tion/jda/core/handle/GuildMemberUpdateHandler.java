@@ -22,7 +22,6 @@ import net.dv8tion.jda.core.entities.impl.MemberImpl;
 import net.dv8tion.jda.core.events.guild.member.GuildMemberNickChangeEvent;
 import net.dv8tion.jda.core.events.guild.member.GuildMemberRoleAddEvent;
 import net.dv8tion.jda.core.events.guild.member.GuildMemberRoleRemoveEvent;
-import net.dv8tion.jda.core.requests.GuildLock;
 import org.apache.commons.lang3.StringUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -129,6 +128,8 @@ public class GuildMemberUpdateHandler extends SocketHandler
                                 guild, member, prevNick, newNick));
             }
         }
+        // this allows GuildController to make new changes
+        member.unlock();
         return null;
     }
 

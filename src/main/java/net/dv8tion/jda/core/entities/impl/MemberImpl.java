@@ -27,12 +27,14 @@ import java.awt.Color;
 import java.time.OffsetDateTime;
 import java.util.*;
 
-public class MemberImpl implements Member
+public class MemberImpl implements Member, UpdateLock
 {
     private final GuildImpl guild;
     private final User user;
     private final HashSet<Role> roles = new HashSet<>();
     private final GuildVoiceState voiceState;
+
+    private boolean locked = false;
 
     private String nickname;
     private OffsetDateTime joinDate;
@@ -245,5 +247,29 @@ public class MemberImpl implements Member
     public String getAsMention()
     {
         return nickname == null ? user.getAsMention() : "<@!" + user.getIdLong() + '>';
+    }
+
+    // UPDATE LOCKS
+
+    @Override
+    public synchronized boolean unlock()
+    {
+        final boolean oldState = isLocked();
+        this.locked = false;
+        return oldState;
+    }
+
+    @Override
+    public synchronized boolean lock()
+    {
+        final boolean oldState = isLocked();
+        this.locked = true;
+        return oldState;
+    }
+
+    @Override
+    public synchronized boolean isLocked()
+    {
+        return this.locked;
     }
 }

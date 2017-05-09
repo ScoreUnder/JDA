@@ -21,7 +21,6 @@ import net.dv8tion.jda.core.entities.VoiceChannel;
 import net.dv8tion.jda.core.entities.impl.*;
 import net.dv8tion.jda.core.events.guild.member.GuildMemberLeaveEvent;
 import net.dv8tion.jda.core.events.guild.voice.GuildVoiceLeaveEvent;
-import net.dv8tion.jda.core.requests.GuildLock;
 import net.dv8tion.jda.core.requests.WebSocketClient;
 import org.json.JSONObject;
 
@@ -56,10 +55,13 @@ public class GuildMemberRemoveHandler extends SocketHandler
             return null;
         }
 
+        member.unlock();
+
         if (member.getVoiceState().inVoiceChannel())//If this user was in a VoiceChannel, fire VoiceLeaveEvent.
         {
 
             GuildVoiceStateImpl vState = (GuildVoiceStateImpl) member.getVoiceState();
+            vState.unlock();
             VoiceChannel channel = vState.getChannel();
             vState.setConnectedChannel(null);
             ((VoiceChannelImpl) channel).getConnectedMembersMap().remove(member.getUser().getIdLong());

@@ -729,7 +729,6 @@ public class GuildImpl implements Guild
         return emotes;
     }
 
-
     // -- Object overrides --
 
     @Override
@@ -783,6 +782,20 @@ public class GuildImpl implements Guild
                 }
             }
         };
+    }
+
+    // -- Update Locks --
+
+    public void releaseUpdateLocks()
+    {
+        getMembers().stream()
+            .map(MemberImpl.class::cast)
+            .forEach( (member) ->
+            {
+                member.unlock();
+                GuildVoiceStateImpl state = (GuildVoiceStateImpl) member.getVoiceState();
+                state.unlock();
+            });
     }
 
 }

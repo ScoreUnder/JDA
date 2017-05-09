@@ -18,7 +18,7 @@ package net.dv8tion.jda.core.entities.impl;
 
 import net.dv8tion.jda.core.entities.*;
 
-public class GuildVoiceStateImpl implements GuildVoiceState
+public class GuildVoiceStateImpl implements GuildVoiceState, UpdateLock
 {
     private final GuildImpl guild;
     private final Member member;
@@ -30,6 +30,8 @@ public class GuildVoiceStateImpl implements GuildVoiceState
     private boolean guildMuted = false;
     private boolean guildDeafened = false;
     private boolean suppressed = false;
+
+    private boolean locked = false;
 
     public GuildVoiceStateImpl(GuildImpl guild, Member member)
     {
@@ -186,5 +188,29 @@ public class GuildVoiceStateImpl implements GuildVoiceState
     {
         this.suppressed = suppressed;
         return this;
+    }
+
+    // UPDATE LOCKS
+
+    @Override
+    public synchronized boolean unlock()
+    {
+        final boolean oldState = isLocked();
+        this.locked = false;
+        return oldState;
+    }
+
+    @Override
+    public synchronized boolean lock()
+    {
+        final boolean oldState = isLocked();
+        this.locked = true;
+        return oldState;
+    }
+
+    @Override
+    public synchronized boolean isLocked()
+    {
+        return this.locked;
     }
 }

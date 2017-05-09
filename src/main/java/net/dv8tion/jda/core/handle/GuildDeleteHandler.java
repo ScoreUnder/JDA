@@ -27,6 +27,7 @@ import net.dv8tion.jda.client.entities.impl.JDAClientImpl;
 import net.dv8tion.jda.core.AccountType;
 import net.dv8tion.jda.core.audio.hooks.ConnectionStatus;
 import net.dv8tion.jda.core.entities.Guild;
+import net.dv8tion.jda.core.entities.Member;
 import net.dv8tion.jda.core.entities.impl.GuildImpl;
 import net.dv8tion.jda.core.entities.impl.JDAImpl;
 import net.dv8tion.jda.core.entities.impl.PrivateChannelImpl;
@@ -83,10 +84,10 @@ public class GuildDeleteHandler extends SocketHandler
             if (g.equals(guild))
                 continue;
 
+            final TLongObjectMap<Member> membersMap = g.getMembersMap();
             for (TLongIterator it = memberIds.iterator(); it.hasNext();)
             {
-
-                if (g.getMembersMap().containsKey(it.next()))
+                if (membersMap.containsKey(it.next()))
                     it.remove();
             }
         }
@@ -137,6 +138,7 @@ public class GuildDeleteHandler extends SocketHandler
         api.getGuildMap().remove(guild.getIdLong());
         guild.getTextChannels().forEach(chan -> api.getTextChannelMap().remove(chan.getIdLong()));
         guild.getVoiceChannels().forEach(chan -> api.getVoiceChannelMap().remove(chan.getIdLong()));
+        guild.releaseUpdateLocks();
         api.getEventManager().handle(
                 new GuildLeaveEvent(
                         api, responseNumber,
