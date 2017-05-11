@@ -29,7 +29,7 @@ import net.dv8tion.jda.core.requests.Response;
 import net.dv8tion.jda.core.requests.RestAction;
 import net.dv8tion.jda.core.requests.Route;
 import net.dv8tion.jda.core.utils.PermissionUtil;
-import org.apache.http.util.Args;
+import net.dv8tion.jda.core.utils.Checks;
 
 import java.awt.Color;
 import java.time.OffsetDateTime;
@@ -147,7 +147,7 @@ public class RoleImpl implements Role
     @Override
     public boolean hasPermission(Collection<Permission> permissions)
     {
-        Args.notNull(permissions, "Permission Collection");
+        Checks.notNull(permissions, "Permission Collection");
 
         return hasPermission(permissions.toArray(new Permission[permissions.size()]));
     }
@@ -167,7 +167,7 @@ public class RoleImpl implements Role
     @Override
     public boolean hasPermission(Channel channel, Collection<Permission> permissions)
     {
-        Args.notNull(permissions, "Permission Collection");
+        Checks.notNull(permissions, "Permission Collection");
 
         return hasPermission(channel, permissions.toArray(new Permission[permissions.size()]));
     }

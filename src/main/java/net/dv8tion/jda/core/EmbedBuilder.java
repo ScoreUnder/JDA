@@ -17,7 +17,7 @@ package net.dv8tion.jda.core;
 
 import net.dv8tion.jda.core.entities.MessageEmbed;
 import net.dv8tion.jda.core.entities.impl.MessageEmbedImpl;
-import org.apache.http.util.Args;
+import net.dv8tion.jda.core.utils.Checks;
 
 import java.awt.Color;
 import java.time.*;
@@ -205,7 +205,7 @@ public class EmbedBuilder
         }
         else
         {
-            Args.check(description.length() <= MessageEmbed.TEXT_MAX_LENGTH,
+            Checks.check(description.length() <= MessageEmbed.TEXT_MAX_LENGTH,
                 "Description cannot be longer than %d characters.", MessageEmbed.TEXT_MAX_LENGTH);
             this.description = new StringBuilder(description);
         }
@@ -230,8 +230,8 @@ public class EmbedBuilder
      */
     public EmbedBuilder appendDescription(CharSequence description)
     {
-        Args.notNull(description, "description");
-        Args.check(this.description.length() + description.length() <= MessageEmbed.TEXT_MAX_LENGTH,
+        Checks.notNull(description, "description");
+        Checks.check(this.description.length() + description.length() <= MessageEmbed.TEXT_MAX_LENGTH,
                 "Description cannot be longer than %d characters.", MessageEmbed.TEXT_MAX_LENGTH);
         this.description.append(description);
         return this;
