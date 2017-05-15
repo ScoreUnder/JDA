@@ -704,7 +704,7 @@ public class WebSocketClient extends WebSocketAdapter implements WebSocketListen
 
         //If initiating, only allows READY, RESUMED, GUILD_MEMBERS_CHUNK, GUILD_SYNC, and GUILD_CREATE through.
         // If we are currently chunking, we don't allow GUILD_CREATE through anymore.
-        if (initiating &&  !(type.equals("READY")
+        if (initiating && !(type.equals("READY")
                 || type.equals("GUILD_MEMBERS_CHUNK")
                 || type.equals("RESUMED")
                 || type.equals("GUILD_SYNC")
@@ -717,7 +717,7 @@ public class WebSocketClient extends WebSocketAdapter implements WebSocketListen
             {
                 type = "GUILD_CREATE";
                 raw.put("t", "GUILD_CREATE")
-                        .put("jda-field","This event was originally a GUILD_DELETE but was converted to GUILD_CREATE for WS init Guild streaming");
+                   .put("jda-field", "This event was originally a GUILD_DELETE but was converted to GUILD_CREATE for WS init Guild streaming");
             }
             else
             {
@@ -750,20 +750,29 @@ public class WebSocketClient extends WebSocketAdapter implements WebSocketListen
             {
                 //INIT types
                 case "READY":
+                {
                     //LOG.debug(String.format("%s -> %s", type, content.toString())); already logged on trace level
                     sessionId = content.getString("session_id");
                     handlers.get("READY").handle(responseTotal, raw);
                     break;
+                }
                 case "RESUMED":
-                    initiating = false;
-                    ready();
+                {
+                    if (!firstInit)
+                    {
+                        initiating = false;
+                        ready();
+                    }
                     break;
+                }
                 default:
+                {
                     SocketHandler handler = handlers.get(type);
                     if (handler != null)
                         handler.handle(responseTotal, raw);
                     else
                         LOG.debug("Unrecognized event:\n" + raw);
+                }
             }
         }
         catch (JSONException ex)
