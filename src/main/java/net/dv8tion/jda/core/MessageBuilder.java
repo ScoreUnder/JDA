@@ -17,13 +17,13 @@ package net.dv8tion.jda.core;
 
 import net.dv8tion.jda.core.entities.*;
 import net.dv8tion.jda.core.entities.impl.MessageImpl;
+import net.dv8tion.jda.core.utils.MiscUtil;
 import org.apache.http.util.Args;
 
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.Queue;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Builder system used to build {@link net.dv8tion.jda.core.entities.Message Messages}.
@@ -36,9 +36,7 @@ import java.util.regex.Pattern;
  */
 public class MessageBuilder implements Appendable
 {
-    protected static final Pattern USER_MENTION_PATTERN = Pattern.compile("<@!?([0-9]+)>");
-    protected static final Pattern CHANNEL_MENTION_PATTERN = Pattern.compile("<#!?([0-9]+)>");
-    protected static final Pattern ROLE_MENTION_PATTERN = Pattern.compile("<@&!?([0-9]+)>");
+    private static final EnumSet<MentionType> PARSABLE_MENTIONS = EnumSet.of(MentionType.USER, MentionType.ROLE, MentionType.CHANNEL);
 
     protected final StringBuilder builder = new StringBuilder();
 
@@ -372,7 +370,7 @@ public class MessageBuilder implements Appendable
      */
     public MessageBuilder stripMentions(JDA jda)
     {
-        return this.stripMentions(jda, (Guild) null, MentionType.EVERYONE, MentionType.HERE, MentionType.CHANNEL, MentionType.ROLE, MentionType.USER);
+        return this.stripMentions(jda, (Guild) null, false, MentionType.EVERYONE, MentionType.HERE, MentionType.CHANNEL, MentionType.ROLE, MentionType.USER);
     }
 
     /**
@@ -389,7 +387,7 @@ public class MessageBuilder implements Appendable
      */
     public MessageBuilder stripMentions(Guild guild)
     {
-        return this.stripMentions(guild.getJDA(), guild, MentionType.EVERYONE, MentionType.HERE, MentionType.CHANNEL, MentionType.ROLE, MentionType.USER);
+        return this.stripMentions(guild.getJDA(), guild, false, MentionType.EVERYONE, MentionType.HERE, MentionType.CHANNEL, MentionType.ROLE, MentionType.USER);
     }
 
     /**
@@ -408,7 +406,7 @@ public class MessageBuilder implements Appendable
      */
     public MessageBuilder stripMentions(Guild guild, MentionType... types)
     {
-        return this.stripMentions(guild.getJDA(), guild, types);
+        return this.stripMentions(guild.getJDA(), guild, false, types);
     }
 
     /**
@@ -426,99 +424,218 @@ public class MessageBuilder implements Appendable
      */
     public MessageBuilder stripMentions(JDA jda, MentionType... types)
     {
-        return this.stripMentions(jda, null, types);
+        return this.stripMentions(jda, null, false, types);
     }
 
-    private MessageBuilder stripMentions(JDA jda, Guild guild, MentionType... types)
+
+    /**
+     * Replaces all mentions of the specified types with the closest looking textual representation, if possible.
+     *
+     * Does not prevent mentions from taking effect. This is used only to resolve human-readable names.
+     *
+     * <p>Use this over {@link #resolveMentions(JDA, MentionType...)} if {@link net.dv8tion.jda.core.entities.User User} mentions should
+     * be replaced with their nicknames in a specific guild based.
+     * <br>Uses {@link net.dv8tion.jda.core.entities.Member#getEffectiveName()}
+     *
+     * @param  guild
+     *         the guild for {@link net.dv8tion.jda.core.entities.User User} mentions
+     * @param  types
+     *         the {@link MentionType MentionTypes} that should be stripped
+     *
+     * @return Returns the {@link net.dv8tion.jda.core.MessageBuilder MessageBuilder} instance. Useful for chaining.
+     */
+    public MessageBuilder resolveMentions(Guild guild, MentionType... types)
     {
-        if (types == null)
-            return this;
+        return this.stripMentions(guild.getJDA(), guild, true, types);
+    }
 
-        String string = null;
+    /**
+     * Replaces all mentions of the specified types with the closest looking textual representation, if possible.
+     *
+     * Does not prevent mentions from taking effect. This is used only to resolve human-readable names.
+     *
+     * <p>Use this over {@link #resolveMentions(Guild, MentionType...)} if {@link net.dv8tion.jda.core.entities.User User}
+     * mentions should be replaced with their {@link net.dv8tion.jda.core.entities.User#getName()}.
+     *
+     * @param  jda
+     *         The JDA instance used to resolve the mentions.
+     * @param  types
+     *         the {@link MentionType MentionTypes} that should be stripped
+     *
+     * @return Returns the {@link net.dv8tion.jda.core.MessageBuilder MessageBuilder} instance. Useful for chaining.
+     */
+    public MessageBuilder resolveMentions(JDA jda, MentionType... types)
+    {
+        return this.stripMentions(jda, null, true, types);
+    }
 
+    private MessageBuilder stripMentions(JDA jda, Guild guild, boolean toPlaintext, MentionType... types)
+    {
+        Args.notNull(jda, "jda instance");
+        Args.notNull(types, "array of mention types to strip");
+        EnumSet<MentionType> typeSet = EnumSet.noneOf(MentionType.class);
         for (MentionType mention : types)
         {
-            if (mention != null)
+            Args.notNull(mention, "mention type to strip");
+            typeSet.add(mention);
+        }
+
+        // Replace mentions with their user-friendly text equivalent
+        int pos = 0;
+        int stopReplacingUntil = 0;
+        while (pos < builder.length() - 4)  // 4: minimum length of a valid mention "<@1>"
+        {
+            if (builder.charAt(pos) != '<' && builder.charAt(pos) != '@')
             {
-                switch (mention)
+                pos++;
+                continue;
+            }
+
+            int mentionStart = pos;
+            parsingMention:
+            {
+                MentionType type;
+                if (builder.charAt(pos) == '<')
                 {
-                    case EVERYONE:
-                        replaceAll("@everyone", "@\u0435veryone");
-                        break;
-                    case HERE:
-                        replaceAll("@here", "@h\u0435re");
-                        break;
-                    case CHANNEL:
+                    pos++;
+                    if (builder.charAt(pos) == '@')
                     {
-                        if (string == null)
+                        pos++;
+                        if (builder.charAt(pos) == '&')
                         {
-                            string = builder.toString();
+                            pos++;
+                            type = MentionType.ROLE;
                         }
-                        
-                        Matcher matcher = CHANNEL_MENTION_PATTERN.matcher(string);
-                        while (matcher.find())
+                        else
                         {
-                            TextChannel channel = jda.getTextChannelById(matcher.group(1));
-                            if (channel != null)
-                            {
-                                replaceAll(matcher.group(), "#" + channel.getName());
-                            }
+                            type = MentionType.USER;
+                            if (builder.charAt(pos) == '!')
+                                pos++;
                         }
-                        break;
                     }
-                    case ROLE:
-                    {    
-                        if (string == null)
-                        {
-                            string = builder.toString();
-                        }
-
-                        Matcher matcher = ROLE_MENTION_PATTERN.matcher(string);
-                        while (matcher.find())
-                        {
-                            for (Guild g : jda.getGuilds())
-                            {
-                                Role role = g.getRoleById(matcher.group(1));
-                                if (role != null)
-                                {
-                                    replaceAll(matcher.group(), "@"+role.getName());
-                                    break;
-                                }
-                            }
-                        }
-                        break;
-                    }
-                    case USER:
+                    else if (builder.charAt(pos) == '#')
                     {
-                        if (string == null)
-                        {
-                            string = builder.toString();
-                        }
-
-                        Matcher matcher = USER_MENTION_PATTERN.matcher(string);
-                        while (matcher.find())
-                        {
-                            User user = jda.getUserById(matcher.group(1));
-                            String replacement = null;
-
-                            if (user == null)
-                                continue;
-
-                            Member member;
-
-                            if (guild != null && (member = guild.getMember(user)) != null)
-                                replacement = member.getEffectiveName();
-                            else
-                                replacement = user.getName();
-
-                            replaceAll(matcher.group(), "@" + replacement);
-                        }
-                        break;
+                        pos++;
+                        type = MentionType.CHANNEL;
+                    }
+                    else
+                    {
+                        break parsingMention;
                     }
                 }
+                else if (builder.charAt(pos) == '@')
+                {
+                    pos++;
+                    if (pos + 8 <= builder.length() && builder.substring(pos, pos + 8).equals("everyone"))
+                        type = MentionType.EVERYONE;
+                    else if (pos + 4 <= builder.length() && builder.substring(pos, pos + 4).equals("here"))
+                        type = MentionType.HERE;
+                    else
+                        break parsingMention;
+                }
+                else
+                {
+                    break parsingMention;
+                }
+
+                // Don't replace a mention that the caller didn't ask to replace
+                // (unless it's part of an already-resolved mention, in which case
+                // it never was a mention in the first place and should be replaced).
+                if (mentionStart >= stopReplacingUntil && !typeSet.contains(type))
+                    break parsingMention;
+
+                if (mentionStart < stopReplacingUntil || !PARSABLE_MENTIONS.contains(type))
+                {
+                    if (toPlaintext)
+                        break parsingMention;
+
+                    builder.insert(pos++, '\u200B');
+                    continue;
+                }
+
+                int endMention = builder.indexOf(">", pos);
+                if (endMention == -1)
+                    break parsingMention;
+
+                long snowflake;
+                try
+                {
+                    snowflake = MiscUtil.parseSnowflake(builder.substring(pos, endMention));
+                }
+                catch (NumberFormatException e)
+                {
+                    break parsingMention;
+                }
+
+                String replacement = null;
+                switch (type)
+                {
+                    case CHANNEL:
+                    {
+                        TextChannel channel = jda.getTextChannelById(snowflake);
+                        if (channel == null)
+                            break;
+
+                        replacement = "#" + channel.getName();
+                        break;
+                    }
+
+                    case ROLE:
+                    {
+                        for (Guild g : jda.getGuilds())
+                        {
+                            Role role = g.getRoleById(snowflake);
+                            if (role == null)
+                                continue;
+
+                            replacement = "@" + role.getName();
+                            break;
+                        }
+                        break;
+                    }
+
+                    case USER:
+                    {
+                        User user = jda.getUserById(snowflake);
+
+                        if (user == null)
+                            break;
+
+                        Member member;
+                        if (guild != null && (member = guild.getMember(user)) != null)
+                            replacement = "@" + member.getEffectiveName();
+                        else
+                            replacement = "@" + user.getName();
+                        break;
+                    }
+
+                    default:
+                        throw new IllegalStateException("Generated a mention type but could not handle it");
+                }
+
+                if (replacement == null)
+                {
+                    // Possibly valid mention but not one we have resolved to a name
+                    // Neutralize it just in case
+                    if (!toPlaintext)
+                    {
+                        builder.insert(pos++, '\u200B');
+                        continue;
+                    }
+                }
+                else
+                {
+                    builder.replace(mentionStart, endMention + 1, replacement);
+                    stopReplacingUntil = mentionStart + replacement.length();
+                    // Now that the mention has been replaced, check it again (so that it doesn't turn into @here etc)
+                    pos = mentionStart;
+                    continue;
+                }
             }
+
+            pos = mentionStart + 1;
         }
-        
+
         return this;
     }
 
